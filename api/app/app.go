@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sprout/api/dbpool"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -29,6 +31,7 @@ var (
 // Context
 type Context struct {
 	Timezone *time.Location
+	DB       *dbpool.DBPool
 	Port     string
 	Debug    bool
 	Env      string
@@ -37,6 +40,9 @@ type Context struct {
 // ContextInit for initialize
 func ContextInit(rurl string, dburi []string, port, env string, debug bool) *Context {
 	App = new(Context)
+	// db
+	App.DB = dbpool.NewDBPool(dburi)
+
 	App.Port = port
 	App.Timezone = Timezone
 	App.Debug = debug
@@ -46,6 +52,9 @@ func ContextInit(rurl string, dburi []string, port, env string, debug bool) *Con
 
 func init() {
 	// Give the default value here
+	flag.StringVar(&dbName, "dbname", "inbound_new", `database name to conect`)
+	flag.StringVar(&dbHost, "dbhost", "localhost", `database host to conec`)
+	flag.StringVar(&dbUser, "dbuser", "root", `database user for connection`)
 	flag.StringVar(&port, "port", ":3000", `address for listen default is :3000`)
 	flag.BoolVar(&debug, "debug", false, `Flag for DEBUG, Default is: false`)
 	flag.Parse()
@@ -65,6 +74,8 @@ func init() {
 	}
 
 	fmt.Println(PackageName, Version)
+	fmt.Printf("database: %s@%s %s\n", dbUser, dbHost, dbName)
+
 	if debug {
 		fmt.Println("Running in DEBUG mode")
 	}
@@ -75,9 +86,25 @@ func printhelp() {
 	fmt.Println("Usage:")
 	flag.PrintDefaults()
 }
-
 func NewContext() *Context {
-	var dbs []string
-	var redisurl string
+
+	log.Println(dbHost)
+
+	dbs := []string{}
+
+	if strings.Contains(dbHost, ",") {
+		for _, host := range strings.Split(strings.TrimSpace(dbHost), ",") {
+			// dburi := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8&timeout=1m&parseTime=true&loc=%s", dbUser, dbPass, host, dbPort, dbName, "Asia%2FTaipei")
+			dbURI := fmt.Sprintf(" dbname=%s host=%s user=%s sslmode=disable", dbName, host, dbUser)
+			log.Println(dbURI)
+			dbs = append(dbs, dbURI)
+		}
+
+	} else {
+		// dburi := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8&timeout=1m&parseTime=true&loc=%s", dbUser, dbPass, dbHost, dbPort, dbName, "Asia%2FTaipei")
+		dbURI := fmt.Sprintf(" dbname=%s host=%s user=%s sslmode=disable", dbName, dbHost, dbUser)
+		log.Println(dbURI)
+		dbs = append(dbs, dbURI)
+	}
 	return ContextInit(redisurl, dbs, port, env, debug)
 }
